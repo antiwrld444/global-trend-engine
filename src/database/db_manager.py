@@ -68,14 +68,51 @@ class DBManager:
             logger.error(f"Ошибка при сохранении тренда: {e}")
             return
             
-        # Запись в историю
+        # Запись в историю (расчет score: sentiment * mentions)
         try:
-            # В качестве score используем sentiment для примера отслеживания популярности/настроения
-            cursor.execute("INSERT INTO trend_history (trend_id, score) VALUES (?, ?)", (trend_id, sentiment))
+            cursor.execute("SELECT mentions_count FROM trends WHERE id = ?", (trend_id,))
+            mentions = cursor.fetchone()[0]
+            score = sentiment * mentions * source_weight
+            cursor.execute("INSERT INTO trend_history (trend_id, score) VALUES (?, ?)", (trend_id, score))
         except Exception as e:
             logger.error(f"Ошибка при записи истории тренда: {e}")
             
         self.conn.commit()
+
+    def get_trend_timeseries(self, trend_id):
+        """Возвращает историю изменений score для конкретного тренда."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT timestamp, score FROM trend_history WHERE trend_id = ? ORDER BY timestamp ASC", (trend_id,))
+        return cursor.fetchall()
+
+    def get_top_trends_timeseries(self, limit=5):
+        """Возвращает историю изменений для топ-N трендов."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, title FROM trends ORDER BY mentions_count DESC LIMIT ?", (limit,))
+        top_trends = cursor.fetchall()
+        
+        history_data = {}
+        for trend_id, title in top_trends:
+            history_data[title] = self.get_trend_timeseries(trend_id)
+        return history_data
+
+    def get_brand_heatmap(self):
+        """Извлекает сущности (ORGs) из базы для тепловой карты брендов."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT entities FROM trends WHERE entities IS NOT NULL AND entities != '[]'")
+        rows = cursor.fetchall()
+        
+        brand_counts = {}
+        import json
+        for row in rows:
+            try:
+                entities = json.loads(row[0].replace("'", '"')) # На случай если там одинарные кавычки
+                for entity, label in entities:
+                    if label == 'ORG':
+                        brand_counts[entity] = brand_counts.get(entity, 0) + 1
+            except Exception:
+                continue
+        return brand_counts
 
 if __name__ == "__main__":
     db = DBManager()

@@ -69,7 +69,7 @@ else:
                 st.info(f"**{title}**")
 
     # Основной контент
-    tab1, tab2, tab3 = st.tabs(["🔥 Топ Трендов", "📈 История Динамики", "📊 Аналитика Ниш"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🔥 Топ Трендов", "📈 История Динамики", "📊 Аналитика Ниш", "🕵️ Deep Insights"])
 
     with tab1:
         st.subheader("Ранжированный список возможностей")
@@ -134,6 +134,61 @@ else:
                 title="Связь упоминаний и настроения"
             )
             st.plotly_chart(fig_scatter, use_container_width=True)
+
+    with tab4:
+        st.subheader("Глубинный анализ данных (Deep Insights)")
+        
+        col_ts, col_hm = st.columns(2)
+        
+        with col_ts:
+            st.markdown("#### Тренды в разрезе времени")
+            if not df_history.empty:
+                # Группируем историю по дням/часам для чистоты
+                df_history['timestamp'] = pd.to_datetime(df_history['timestamp'])
+                # Линейный график изменения рейтинга
+                fig_time = px.line(
+                    df_history, 
+                    x='timestamp', 
+                    y='score', 
+                    color='title',
+                    title="Time-series Trend Evolution",
+                    template="plotly_dark"
+                )
+                st.plotly_chart(fig_time, use_container_width=True)
+            else:
+                st.info("Недостаточно данных для тайм-серий.")
+
+        with col_hm:
+            st.markdown("#### Brand Heatmap (NER Analysis)")
+            import json
+            brand_counts = {}
+            for entities_str in df_trends['entities'].dropna():
+                try:
+                    # Исправление формата JSON (одинарные кавычки на двойные)
+                    valid_json = entities_str.replace("'", '"')
+                    entities = json.loads(valid_json)
+                    for entity, label in entities:
+                        if label == 'ORG':
+                            brand_counts[entity] = brand_counts.get(entity, 0) + 1
+                except:
+                    continue
+            
+            if brand_counts:
+                brand_df = pd.DataFrame(list(brand_counts.items()), columns=['Brand', 'Mentions'])
+                brand_df = brand_df.sort_values(by='Mentions', ascending=False).head(15)
+                
+                fig_heat = px.bar(
+                    brand_df, 
+                    x='Mentions', 
+                    y='Brand', 
+                    orientation='h',
+                    color='Mentions',
+                    color_continuous_scale='Viridis',
+                    title="Наиболее упоминаемые компании"
+                )
+                st.plotly_chart(fig_heat, use_container_width=True)
+            else:
+                st.info("Данные о брендах не найдены.")
 
 st.sidebar.markdown("---")
 st.sidebar.info("Разработано для BI-аналитики трендов. (v2.0 Visual Upgrade)")
