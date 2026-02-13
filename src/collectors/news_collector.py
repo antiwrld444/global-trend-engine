@@ -15,7 +15,11 @@ class NewsCollector:
         self.feeds = {
             "Technology": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
             "Business": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
-            "Fashion": "https://www.vogue.com/feed/rss"
+            "Fashion": "https://www.vogue.com/feed/rss",
+            "TechCrunch": "https://techcrunch.com/feed/",
+            "Wired": "https://www.wired.com/feed/rss",
+            "BBC_Business": "http://feeds.bbci.co.uk/news/business/rss.xml",
+            "TheVerge": "https://www.theverge.com/rss/index.xml"
         }
 
     def fetch_from_news_api(self):
