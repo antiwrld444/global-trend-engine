@@ -6,6 +6,9 @@ import requests
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from database.db_manager import DBManager
 from analytics.nlp_processor import NLPProcessor
+from utils.logger import setup_logger
+
+logger = setup_logger("news_collector")
 
 class NewsCollector:
     def __init__(self):
@@ -24,37 +27,43 @@ class NewsCollector:
 
     def fetch_from_news_api(self):
         if not self.news_api_key:
-            print("NewsAPI Key не найден, пропускаем...")
+            logger.info("NewsAPI Key не найден, пропускаем...")
             return []
         
-        print("--- Сбор данных через NewsAPI ---")
+        logger.info("--- Сбор данных через NewsAPI ---")
         url = f"https://newsapi.org/v2/everything?q=trend+market&apiKey={self.news_api_key}"
         try:
             response = requests.get(url)
             data = response.json()
             return data.get("articles", [])[:10]
         except Exception as e:
-            print(f"Ошибка NewsAPI: {e}")
+            logger.error(f"Ошибка NewsAPI: {e}")
             return []
 
     def run(self):
-        print("--- Запуск сбора и NLP-анализа данных ---")
+        logger.info("--- Запуск сбора и NLP-анализа данных ---")
         
         # 1. RSS Feeds
         for category, url in self.feeds.items():
-            print(f"Обработка RSS категории: {category}")
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:5]: 
-                sentiment_score = self.nlp.analyze_text(entry.title)
-                self.db.save_trend(entry.title, entry.link, sentiment_score, category)
-                print(f"RSS Сохранено: {entry.title[:50]}... [Score: {sentiment_score:.2f}]")
+            logger.info(f"Обработка RSS категории: {category}")
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:5]: 
+                    sentiment_score = self.nlp.analyze_text(entry.title)
+                    self.db.save_trend(entry.title, entry.link, sentiment_score, category)
+                    logger.info(f"RSS Сохранено: {entry.title[:50]}... [Score: {sentiment_score:.2f}]")
+            except Exception as e:
+                logger.error(f"Ошибка при обработке RSS {category}: {e}")
 
         # 2. NewsAPI (если есть ключ)
-        articles = self.fetch_from_news_api()
-        for art in articles:
-            sentiment_score = self.nlp.analyze_text(art["title"])
-            self.db.save_trend(art["title"], art["url"], sentiment_score, "Global")
-            print(f"NewsAPI Сохранено: {art['title'][:50]}... [Score: {sentiment_score:.2f}]")
+        try:
+            articles = self.fetch_from_news_api()
+            for art in articles:
+                sentiment_score = self.nlp.analyze_text(art["title"])
+                self.db.save_trend(art["title"], art["url"], sentiment_score, "Global")
+                logger.info(f"NewsAPI Сохранено: {art['title'][:50]}... [Score: {sentiment_score:.2f}]")
+        except Exception as e:
+            logger.error(f"Ошибка при обработке NewsAPI: {e}")
 
 if __name__ == "__main__":
     collector = NewsCollector()

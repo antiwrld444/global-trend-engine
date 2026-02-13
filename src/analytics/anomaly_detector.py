@@ -1,5 +1,12 @@
 import numpy as np
 import pandas as pd
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.logger import setup_logger
+
+logger = setup_logger("anomaly_detector")
 
 class AnomalyDetector:
     """
@@ -10,20 +17,27 @@ class AnomalyDetector:
         self.threshold = threshold
 
     def detect_breakouts(self, df):
-        if df.empty or len(df) < 3:
+        logger.info("--- Запуск поиска аномалий ---")
+        try:
+            if df.empty or len(df) < 3:
+                logger.info("Недостаточно данных для поиска аномалий.")
+                return []
+
+            # Рассчитываем среднее и стандартное отклонение для скоров
+            mean_score = df['opportunity_score'].mean()
+            std_score = df['opportunity_score'].std()
+
+            if std_score == 0:
+                return []
+
+            # Находим тренды, чей скор выше (mean + threshold * std)
+            breakouts = df[df['opportunity_score'] > (mean_score + self.threshold * std_score)]
+            
+            logger.info(f"Найдено аномалий: {len(breakouts)}")
+            return breakouts['title'].tolist()
+        except Exception as e:
+            logger.error(f"Ошибка при поиске аномалий: {e}")
             return []
-
-        # Рассчитываем среднее и стандартное отклонение для скоров
-        mean_score = df['opportunity_score'].mean()
-        std_score = df['opportunity_score'].std()
-
-        if std_score == 0:
-            return []
-
-        # Находим тренды, чей скор выше (mean + threshold * std)
-        breakouts = df[df['opportunity_score'] > (mean_score + self.threshold * std_score)]
-        
-        return breakouts['title'].tolist()
 
 if __name__ == "__main__":
     # Тестовый запуск
