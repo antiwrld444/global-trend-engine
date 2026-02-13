@@ -50,8 +50,9 @@ class NewsCollector:
                 feed = feedparser.parse(url)
                 for entry in feed.entries[:5]: 
                     sentiment_score = self.nlp.analyze_text(entry.title)
-                    self.db.save_trend(entry.title, entry.link, sentiment_score, category)
-                    logger.info(f"RSS Сохранено: {entry.title[:50]}... [Score: {sentiment_score:.2f}]")
+                    keywords = self.nlp.extract_keywords(entry.title)
+                    self.db.save_trend(entry.title, entry.link, sentiment_score, category, keywords)
+                    logger.info(f"RSS Сохранено: {entry.title[:50]}... [Score: {sentiment_score:.2f}, Keywords: {keywords}]")
             except Exception as e:
                 logger.error(f"Ошибка при обработке RSS {category}: {e}")
 
@@ -60,8 +61,9 @@ class NewsCollector:
             articles = self.fetch_from_news_api()
             for art in articles:
                 sentiment_score = self.nlp.analyze_text(art["title"])
-                self.db.save_trend(art["title"], art["url"], sentiment_score, "Global")
-                logger.info(f"NewsAPI Сохранено: {art['title'][:50]}... [Score: {sentiment_score:.2f}]")
+                keywords = self.nlp.extract_keywords(art["title"])
+                self.db.save_trend(art["title"], art["url"], sentiment_score, "Global", keywords)
+                logger.info(f"NewsAPI Сохранено: {art['title'][:50]}... [Score: {sentiment_score:.2f}, Keywords: {keywords}]")
         except Exception as e:
             logger.error(f"Ошибка при обработке NewsAPI: {e}")
 

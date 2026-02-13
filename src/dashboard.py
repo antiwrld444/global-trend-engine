@@ -35,6 +35,6 @@ else:
     # Визуализация по категориям
     st.subheader("📊 Распределение по нишам")
     fig = px.pie(data, names='category', values='opportunity_score', hole=0.3)
-    st.plotly_express.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
 st.sidebar.info("Разработано Михал Палычем для BI-аналитики.")
