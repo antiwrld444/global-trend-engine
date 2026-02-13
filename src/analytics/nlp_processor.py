@@ -1,14 +1,21 @@
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModel
 import re
+import torch
+import torch.nn.functional as F
 
 class NLPProcessor:
     """
-    Класс для анализа текста: определение настроения и извлечение сути.
+    Класс для анализа текста: определение настроения, извлечение сути и вычисление эмбеддингов.
     """
     def __init__(self):
         # Загружаем легковесную модель для анализа настроений
         print("--- Загрузка NLP моделей ---")
         self.sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+        
+        # Модель для эмбеддингов (используем ту же distilbert для экономии памяти или sentence-transformers)
+        self.embed_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.embed_model_name)
+        self.model = AutoModel.from_pretrained(self.embed_model_name)
         
         # Список стоп-слов для базового извлечения ключевых слов
         self.stopwords = {
@@ -24,6 +31,24 @@ class NLPProcessor:
             "of", "off", "on", "onto", "out", "outside", "over", "past", "since", "through",
             "throughout", "to", "toward", "under", "until", "up", "upon", "with", "within", "without"
         }
+
+    def get_embedding(self, text):
+        """Вычисляет эмбеддинг для текста."""
+        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors="pt", max_length=512)
+        with torch.no_grad():
+            model_output = self.model(**inputs)
+        # mean pooling
+        embeddings = model_output[0].mean(dim=1)
+        # normalization
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+        return embeddings
+
+    def calculate_similarity(self, text1, text2):
+        """Вычисляет косинусное сходство между двумя текстами."""
+        emb1 = self.get_embedding(text1)
+        emb2 = self.get_embedding(text2)
+        similarity = torch.mm(emb1, emb2.transpose(0, 1))
+        return similarity.item()
 
     def analyze_text(self, text):
         # Ограничиваем длину текста для модели

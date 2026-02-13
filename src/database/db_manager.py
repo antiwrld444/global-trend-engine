@@ -4,6 +4,7 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.logger import setup_logger
+from analytics.nlp_processor import NLPProcessor
 
 logger = setup_logger("db_manager")
 
@@ -11,6 +12,7 @@ class DBManager:
     def __init__(self, db_path="/root/projects/global-trend-engine/data/trends.db"):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.conn = sqlite3.connect(db_path)
+        self.nlp = None # Ленивая инициализация для избежания циклического импорта или лишней нагрузки
         self.create_tables()
 
     def create_tables(self):
@@ -55,20 +57,54 @@ class DBManager:
 
     def save_trend(self, title, link, sentiment, category, keywords=None, source_weight=1.0, entities=None):
         cursor = self.conn.cursor()
+        
+        # 1. Семантическая группировка (Deduplication)
+        if self.nlp is None:
+            self.nlp = NLPProcessor()
+            
+        try:
+            # Получаем последние тренды для сравнения (например, за последние 7 дней или просто последние 100)
+            cursor.execute("SELECT id, title, mentions_count FROM trends ORDER BY timestamp DESC LIMIT 100")
+            existing_trends = cursor.fetchall()
+            
+            for tid, t_title, m_count in existing_trends:
+                similarity = self.nlp.calculate_similarity(title, t_title)
+                if similarity > 0.85:
+                    logger.info(f"Найден похожий тренд (Sim: {similarity:.2f}): '{t_title}'. Объединяем.")
+                    cursor.execute("""
+                        UPDATE trends 
+                        SET mentions_count = mentions_count + 1, 
+                            timestamp = CURRENT_TIMESTAMP 
+                        WHERE id = ?
+                    """, (tid,))
+                    self.conn.commit()
+                    self._record_history(tid, sentiment, source_weight)
+                    return tid
+
+        except Exception as e:
+            logger.error(f"Ошибка при семантической проверке: {e}")
+
+        # 2. Обычное сохранение, если похожих не найдено
         try:
             cursor.execute("INSERT INTO trends (title, link, sentiment, category, keywords, source_weight, entities) VALUES (?, ?, ?, ?, ?, ?, ?)",
                            (title, link, sentiment, category, keywords, source_weight, entities))
             trend_id = cursor.lastrowid
         except sqlite3.IntegrityError:
             # Если ссылка уже есть, увеличиваем счетчик упоминаний и получаем ID
-            cursor.execute("UPDATE trends SET mentions_count = mentions_count + 1 WHERE link = ?", (link,))
+            cursor.execute("UPDATE trends SET mentions_count = mentions_count + 1, timestamp = CURRENT_TIMESTAMP WHERE link = ?", (link,))
             cursor.execute("SELECT id FROM trends WHERE link = ?", (link,))
             trend_id = cursor.fetchone()[0]
         except Exception as e:
             logger.error(f"Ошибка при сохранении тренда: {e}")
             return
             
-        # Запись в историю (расчет score: sentiment * mentions)
+        self._record_history(trend_id, sentiment, source_weight)
+        self.conn.commit()
+        return trend_id
+
+    def _record_history(self, trend_id, sentiment, source_weight):
+        """Вспомогательный метод для записи в историю."""
+        cursor = self.conn.cursor()
         try:
             cursor.execute("SELECT mentions_count FROM trends WHERE id = ?", (trend_id,))
             mentions = cursor.fetchone()[0]
@@ -76,8 +112,6 @@ class DBManager:
             cursor.execute("INSERT INTO trend_history (trend_id, score) VALUES (?, ?)", (trend_id, score))
         except Exception as e:
             logger.error(f"Ошибка при записи истории тренда: {e}")
-            
-        self.conn.commit()
 
     def get_trend_timeseries(self, trend_id):
         """Возвращает историю изменений score для конкретного тренда."""
