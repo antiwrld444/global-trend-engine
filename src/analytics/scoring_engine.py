@@ -27,9 +27,11 @@ class ScoringEngine:
                 logger.info("Данные для анализа отсутствуют.")
                 return pd.DataFrame()
 
-            # Группируем по заголовкам (упрощенно) для поиска повторяющихся тем
-            # В реальности тут был бы поиск по ключевым словам
-            df['opportunity_score'] = (df['sentiment'] * 0.6) + (df['mentions_count'] * 0.4)
+            # Обновленная формула: учитываем вес источника
+            # opportunity_score = (sentiment * 0.4) + (mentions_count * 0.3) + (source_weight * 0.3)
+            # Мы нормализуем mentions_count и sentiment (уже 0-1), source_weight обычно 1.0-1.5
+            
+            df['opportunity_score'] = (df['sentiment'] * 0.4) + (df['mentions_count'] * 0.3) + (df['source_weight'] * 0.3)
             
             # Сортируем по убыванию "перспективности"
             ranked_df = df.sort_values(by='opportunity_score', ascending=False)
@@ -43,4 +45,4 @@ if __name__ == "__main__":
     ranked_opportunities = engine.calculate_opportunity_scores()
     if not ranked_opportunities.empty:
         print("Топ-3 рыночные возможности:")
-        print(ranked_opportunities[['title', 'category', 'score']].head(3))
+        print(ranked_opportunities[['title', 'category', 'opportunity_score']].head(3))

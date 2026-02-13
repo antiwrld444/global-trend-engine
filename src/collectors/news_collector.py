@@ -24,6 +24,14 @@ class NewsCollector:
             "BBC_Business": "http://feeds.bbci.co.uk/news/business/rss.xml",
             "TheVerge": "https://www.theverge.com/rss/index.xml"
         }
+        self.source_weights = {
+            "Wired": 1.5,
+            "TechCrunch": 1.4,
+            "TheVerge": 1.3,
+            "Technology": 1.2, # NYT Technology
+            "Business": 1.1,
+            "Global": 1.0
+        }
 
     def fetch_from_news_api(self):
         if not self.news_api_key:
@@ -46,24 +54,28 @@ class NewsCollector:
         # 1. RSS Feeds
         for category, url in self.feeds.items():
             logger.info(f"Обработка RSS категории: {category}")
+            source_weight = self.source_weights.get(category, 1.0)
             try:
                 feed = feedparser.parse(url)
                 for entry in feed.entries[:5]: 
                     sentiment_score = self.nlp.analyze_text(entry.title)
                     keywords = self.nlp.extract_keywords(entry.title)
-                    self.db.save_trend(entry.title, entry.link, sentiment_score, category, keywords)
-                    logger.info(f"RSS Сохранено: {entry.title[:50]}... [Score: {sentiment_score:.2f}, Keywords: {keywords}]")
+                    entities = self.nlp.extract_entities(entry.title)
+                    self.db.save_trend(entry.title, entry.link, sentiment_score, category, keywords, source_weight, entities)
+                    logger.info(f"RSS Сохранено: {entry.title[:50]}... [Weight: {source_weight}, Score: {sentiment_score:.2f}, Entities: {entities}]")
             except Exception as e:
                 logger.error(f"Ошибка при обработке RSS {category}: {e}")
 
         # 2. NewsAPI (если есть ключ)
         try:
             articles = self.fetch_from_news_api()
+            source_weight = self.source_weights.get("Global", 1.0)
             for art in articles:
                 sentiment_score = self.nlp.analyze_text(art["title"])
                 keywords = self.nlp.extract_keywords(art["title"])
-                self.db.save_trend(art["title"], art["url"], sentiment_score, "Global", keywords)
-                logger.info(f"NewsAPI Сохранено: {art['title'][:50]}... [Score: {sentiment_score:.2f}, Keywords: {keywords}]")
+                entities = self.nlp.extract_entities(art["title"])
+                self.db.save_trend(art["title"], art["url"], sentiment_score, "Global", keywords, source_weight, entities)
+                logger.info(f"NewsAPI Сохранено: {art['title'][:50]}... [Weight: {source_weight}, Score: {sentiment_score:.2f}, Entities: {entities}]")
         except Exception as e:
             logger.error(f"Ошибка при обработке NewsAPI: {e}")
 

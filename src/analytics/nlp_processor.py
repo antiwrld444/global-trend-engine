@@ -51,6 +51,38 @@ class NLPProcessor:
         sorted_keywords = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
         return ", ".join([kw[0] for kw in sorted_keywords[:limit]])
 
+    def extract_entities(self, text):
+        """
+        Извлекает Сущности (Entities): слова с большой буквы, которые не в начале предложения.
+        Использует простую регулярную логику.
+        """
+        # Ищем слова с большой буквы, которые не в начале строки и не после точки
+        # Упрощенно: ищем заглавную букву, перед которой нет знаков препинания конца предложения
+        # Или просто все слова с большой буквы, кроме первого слова в предложениях.
+        
+        # Разделяем на предложения
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        entities = set()
+        
+        for sentence in sentences:
+            if not sentence:
+                continue
+            # Ищем слова с большой буквы
+            found = re.findall(r'\b[A-Z][a-z]+\b', sentence)
+            if found:
+                # Убираем первое слово, если оно с большой буквы
+                first_word_match = re.match(r'^\s*([A-Z][a-z]+)\b', sentence)
+                if first_word_match:
+                    first_word = first_word_match.group(1)
+                    # Если первое слово встретилось в списке found, убираем одно вхождение
+                    if first_word in found:
+                        found.remove(first_word)
+                
+                for ent in found:
+                    entities.add(ent)
+        
+        return ", ".join(list(entities)) if entities else None
+
 if __name__ == "__main__":
     processor = NLPProcessor()
     test_text = "AI is the most promising technology of 2026, creating thousands of jobs. AI will change the world."

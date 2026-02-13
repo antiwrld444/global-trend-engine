@@ -39,21 +39,25 @@ class DBManager:
                 )
             """)
             
-            # Проверка, есть ли уже колонка keywords (на случай, если таблица существовала)
+            # Проверка колонок (на случай, если таблица существовала)
             cursor.execute("PRAGMA table_info(trends)")
             columns = [col[1] for col in cursor.fetchall()]
             if 'keywords' not in columns:
                 cursor.execute("ALTER TABLE trends ADD COLUMN keywords TEXT")
+            if 'source_weight' not in columns:
+                cursor.execute("ALTER TABLE trends ADD COLUMN source_weight REAL DEFAULT 1.0")
+            if 'entities' not in columns:
+                cursor.execute("ALTER TABLE trends ADD COLUMN entities TEXT")
                 
             self.conn.commit()
         except Exception as e:
             logger.error(f"Ошибка при создании таблиц: {e}")
 
-    def save_trend(self, title, link, sentiment, category, keywords=None):
+    def save_trend(self, title, link, sentiment, category, keywords=None, source_weight=1.0, entities=None):
         cursor = self.conn.cursor()
         try:
-            cursor.execute("INSERT INTO trends (title, link, sentiment, category, keywords) VALUES (?, ?, ?, ?, ?)",
-                           (title, link, sentiment, category, keywords))
+            cursor.execute("INSERT INTO trends (title, link, sentiment, category, keywords, source_weight, entities) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           (title, link, sentiment, category, keywords, source_weight, entities))
             trend_id = cursor.lastrowid
         except sqlite3.IntegrityError:
             # Если ссылка уже есть, увеличиваем счетчик упоминаний и получаем ID
