@@ -1,29 +1,29 @@
-import requests
-import json
+import feedparser
+import sys
+import os
+# Добавляем путь к БД
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from database.db_manager import DBManager
 
 class NewsCollector:
-    """
-    Класс для сбора новостей и трендов из открытых источников.
-    """
     def __init__(self):
-        # В будущем сюда добавим API ключи для NewsAPI или Reddit
-        self.sources = [
-            "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
-            "https://feeds.feedburner.com/TechCrunch/"
-        ]
+        self.db = DBManager()
+        self.feeds = {
+            "Technology": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
+            "Business": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
+            "Fashion": "https://www.vogue.com/feed/rss"
+        }
 
-    def fetch_latest_trends(self):
-        print("--- Сбор данных о глобальных трендах начат ---")
-        # Пока просто имитируем сбор для MVP структуры
-        mock_trends = [
-            {"title": "AI agents are taking over local machines", "source": "TechNews", "sentiment": 0.8},
-            {"title": "Streetwear market shifts towards Y2K aesthetic", "source": "FashionWeekly", "sentiment": 0.9},
-            {"title": "Global interest in plant-based diets hits record high", "source": "HealthMonitor", "sentiment": 0.7}
-        ]
-        return mock_trends
+    def run(self):
+        print("--- Запуск сбора реальных данных ---")
+        for category, url in self.feeds.items():
+            print(f"Обработка категории: {category}")
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:5]: # Берем последние 5 новостей для MVP
+                # Здесь будет sentiment analysis, пока ставим 0.5
+                self.db.save_trend(entry.title, entry.link, 0.5, category)
+                print(f"Сохранено: {entry.title[:50]}...")
 
 if __name__ == "__main__":
     collector = NewsCollector()
-    trends = collector.fetch_latest_trends()
-    for trend in trends:
-        print(f"Обнаружен тренд: {trend['title']} [Источник: {trend['source']}]")
+    collector.run()
