@@ -2,6 +2,7 @@ from transformers import pipeline, AutoTokenizer, AutoModel
 import re
 import torch
 import torch.nn.functional as F
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 class NLPProcessor:
     """
@@ -17,20 +18,12 @@ class NLPProcessor:
         self.tokenizer = AutoTokenizer.from_pretrained(self.embed_model_name)
         self.model = AutoModel.from_pretrained(self.embed_model_name)
         
-        # Список стоп-слов для базового извлечения ключевых слов
-        self.stopwords = {
-            "a", "an", "the", "and", "or", "but", "if", "then", "else", "when",
-            "at", "by", "from", "for", "in", "of", "on", "to", "with", "is", "are",
-            "was", "were", "be", "been", "being", "have", "has", "had", "do", "does",
-            "did", "will", "would", "shall", "should", "can", "could", "may", "might",
-            "must", "this", "that", "these", "those", "it", "its", "they", "their",
-            "them", "we", "our", "us", "you", "your", "he", "she", "his", "her",
-            "about", "above", "across", "after", "against", "along", "among", "around",
-            "as", "at", "before", "behind", "below", "beneath", "beside", "between",
-            "beyond", "during", "except", "for", "from", "in", "inside", "into", "near",
-            "of", "off", "on", "onto", "out", "outside", "over", "past", "since", "through",
-            "throughout", "to", "toward", "under", "until", "up", "upon", "with", "within", "without"
-        }
+        # TF-IDF Векторизатор для извлечения ключевых слов
+        self.tfidf = TfidfVectorizer(
+            stop_words='english',
+            max_features=1000,
+            ngram_range=(1, 2)
+        )
 
     def get_embedding(self, text):
         """Вычисляет эмбеддинг для текста."""
@@ -59,32 +52,35 @@ class NLPProcessor:
 
     def extract_keywords(self, text, limit=5):
         """
-        Извлекает ключевые слова из текста, очищая от стоп-слов и пунктуации.
+        Извлекает ключевые слова из текста с использованием TF-IDF подхода.
+        Для одиночного текста имитируем корпус, но в идеале TF-IDF обучается на всей базе.
         """
-        # Очистка текста от спецсимволов и приведение к нижнему регистру
-        words = re.findall(r'\b\w+\b', text.lower())
-        
-        # Фильтрация: убираем стоп-слова и короткие слова (< 3 символов)
-        filtered_words = [w for w in words if w not in self.stopwords and len(w) > 2]
-        
-        # Подсчет частоты
-        word_freq = {}
-        for word in filtered_words:
-            word_freq[word] = word_freq.get(word, 0) + 1
+        if not text or len(text) < 10:
+            return ""
             
-        # Сортировка по частоте и выбор топ-слов
-        sorted_keywords = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
-        return ", ".join([kw[0] for kw in sorted_keywords[:limit]])
+        try:
+            # Для одиночного документа TF-IDF выделит самые редкие/длинные слова
+            # В будущем стоит перевести на извлечение из всей коллекции документов
+            tfidf_matrix = self.tfidf.fit_transform([text])
+            feature_names = self.tfidf.get_feature_names_out()
+            
+            # Получаем веса для первого (и единственного) документа
+            scores = tfidf_matrix.toarray()[0]
+            
+            # Сортируем слова по весу
+            keyword_data = sorted(zip(feature_names, scores), key=lambda x: x[1], reverse=True)
+            
+            return ", ".join([kw[0] for kw in keyword_data[:limit]])
+        except Exception:
+            # Фолбэк на простую регулярку, если TF-IDF упал (например, слишком короткий текст)
+            words = re.findall(r'\b\w{4,}\b', text.lower())
+            return ", ".join(list(set(words))[:limit])
 
     def extract_entities(self, text):
         """
         Извлекает Сущности (Entities): слова с большой буквы, которые не в начале предложения.
         Использует простую регулярную логику.
         """
-        # Ищем слова с большой буквы, которые не в начале строки и не после точки
-        # Упрощенно: ищем заглавную букву, перед которой нет знаков препинания конца предложения
-        # Или просто все слова с большой буквы, кроме первого слова в предложениях.
-        
         # Разделяем на предложения
         sentences = re.split(r'(?<=[.!?])\s+', text)
         entities = set()
@@ -99,7 +95,6 @@ class NLPProcessor:
                 first_word_match = re.match(r'^\s*([A-Z][a-z]+)\b', sentence)
                 if first_word_match:
                     first_word = first_word_match.group(1)
-                    # Если первое слово встретилось в списке found, убираем одно вхождение
                     if first_word in found:
                         found.remove(first_word)
                 
@@ -110,7 +105,7 @@ class NLPProcessor:
 
 if __name__ == "__main__":
     processor = NLPProcessor()
-    test_text = "AI is the most promising technology of 2026, creating thousands of jobs. AI will change the world."
+    test_text = "AI is the most promising technology of 2026, creating thousands of jobs. Artificial Intelligence will change the world."
     print(f"Текст: {test_text}")
     print(f"Оценка настроения: {processor.analyze_text(test_text)}")
-    print(f"Ключевые слова: {processor.extract_keywords(test_text)}")
+    print(f"Ключевые слова (TF-IDF): {processor.extract_keywords(test_text)}")

@@ -27,7 +27,9 @@ class DBManager:
                     sentiment REAL,
                     category TEXT,
                     mentions_count INTEGER DEFAULT 1,
-                    keywords TEXT
+                    keywords TEXT,
+                    source_weight REAL DEFAULT 1.0,
+                    entities TEXT
                 )
             """)
             
@@ -41,19 +43,40 @@ class DBManager:
                 )
             """)
             
-            # Проверка колонок (на случай, если таблица существовала)
-            cursor.execute("PRAGMA table_info(trends)")
-            columns = [col[1] for col in cursor.fetchall()]
-            if 'keywords' not in columns:
-                cursor.execute("ALTER TABLE trends ADD COLUMN keywords TEXT")
-            if 'source_weight' not in columns:
-                cursor.execute("ALTER TABLE trends ADD COLUMN source_weight REAL DEFAULT 1.0")
-            if 'entities' not in columns:
-                cursor.execute("ALTER TABLE trends ADD COLUMN entities TEXT")
+            # Таблица для снапшотов состояния базы
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS database_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    total_trends INTEGER,
+                    avg_sentiment REAL,
+                    top_category TEXT,
+                    raw_data_json TEXT
+                )
+            """)
                 
             self.conn.commit()
         except Exception as e:
             logger.error(f"Ошибка при создании таблиц: {e}")
+
+    def create_snapshot(self):
+        """Создает снапшот текущего состояния аналитики."""
+        import json
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*), AVG(sentiment) FROM trends")
+            count, avg_sent = cursor.fetchone()
+            
+            cursor.execute("SELECT category, COUNT(*) as c FROM trends GROUP BY category ORDER BY c DESC LIMIT 1")
+            top_cat_row = cursor.fetchone()
+            top_cat = top_cat_row[0] if top_cat_row else "None"
+            
+            cursor.execute("INSERT INTO database_snapshots (total_trends, avg_sentiment, top_category) VALUES (?, ?, ?)",
+                           (count, avg_sent, top_cat))
+            self.conn.commit()
+            logger.info(f"Снапшот базы данных успешно сохранен: {count} трендов.")
+        except Exception as e:
+            logger.error(f"Ошибка при создании снапшота: {e}")
 
     def save_trend(self, title, link, sentiment, category, keywords=None, source_weight=1.0, entities=None):
         cursor = self.conn.cursor()
