@@ -1,0 +1,14 @@
+{
+  "categories": {
+    "Technology": ["AI", "Quantum Computing", "Web3", "Robotics", "SpaceX", "Semiconductors"],
+    "Economy": ["Inflation", "Interest Rates", "BRICS", "De-dollarization", "Crypto Adoption", "Stock Market Crash"],
+    "Consumer": ["E-commerce Trends", "Direct-to-Consumer", "Sustainability", "Luxury Goods", "Gen Z Habits"],
+    "Health": ["Biohacking", "Longevity", "MedTech", "Plant-based Market", "Mental Health Tech"],
+    "Geopolitics": ["Trade Wars", "Cyber Warfare", "Energy Crisis", "Rare Earth Metals"]
+  },
+  "sources": {
+    "Authority": ["Bloomberg", "Reuters", "Financial Times", "The Economist", "TechCrunch", "Wired"],
+    "Regional": ["South China Morning Post", "Al Jazeera", "The Times of India"]
+  },
+  "logic": "monitor_all_threshold_scoring"
+}
