@@ -15,7 +15,8 @@ st.set_page_config(page_title="GTOE | Market Opportunities", layout="wide")
 st.title("🌍 Global Trend & Opportunity Engine")
 st.markdown("### Интерактивный аналитический дашборд")
 
-DB_PATH = "/root/projects/global-trend-engine/data/trends.db"
+base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DB_PATH = os.path.join(base_dir, "data", "trends.db")
 
 def get_data():
     if not os.path.exists(DB_PATH):

@@ -10,39 +10,42 @@ from utils.logger import setup_logger
 logger = setup_logger("scoring_engine")
 
 class ScoringEngine:
-    """
-    BI-движок для ранжирования трендов по их потенциалу.
-    """
     def __init__(self):
-        self.db_path = "/root/projects/global-trend-engine/data/trends.db"
+        # Базовая директория для путей
+        self.base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        self.db_path = os.path.join(self.base_dir, 'data', 'trends.db')
+
+    def analyze(self, raw_data):
+        """Метод для интеграции с Roadmap 4.0: анализирует пачку входящих данных."""
+        scored_trends = []
+        for item in raw_data:
+            # Упрощенная логика скоринга для новых данных
+            # В реальном движке тут должен быть вызов NLPProcessor
+            score = 0.5 # Default score
+            scored_trends.append({
+                "title": item['title'],
+                "url": item['url'],
+                "source": item['source'],
+                "score": score
+            })
+        return scored_trends
 
     def calculate_opportunity_scores(self):
         logger.info("--- Запуск BI-скоринга трендов ---")
         try:
             conn = sqlite3.connect(self.db_path)
-            # Читаем данные в Pandas для аналитики
             df = pd.read_sql_query("SELECT * FROM trends", conn)
+            conn.close()
             
             if df.empty:
-                logger.info("Данные для анализа отсутствуют.")
                 return pd.DataFrame()
 
-            # Обновленная формула: учитываем вес источника
-            # opportunity_score = (sentiment * 0.4) + (mentions_count * 0.3) + (source_weight * 0.3)
-            # Мы нормализуем mentions_count и sentiment (уже 0-1), source_weight обычно 1.0-1.5
+            # Нормализация и расчет
+            # Score = (Sentiment * 0.4) + (Mentions/MaxMentions * 0.3) + (Weight * 0.3)
+            max_mentions = df['mentions_count'].max() if df['mentions_count'].max() > 0 else 1
+            df['opportunity_score'] = (df['sentiment'] * 0.4) +                                      ((df['mentions_count'] / max_mentions) * 0.3) +                                      (df['source_weight'] * 0.3)
             
-            df['opportunity_score'] = (df['sentiment'] * 0.4) + (df['mentions_count'] * 0.3) + (df['source_weight'] * 0.3)
-            
-            # Сортируем по убыванию "перспективности"
-            ranked_df = df.sort_values(by='opportunity_score', ascending=False)
-            return ranked_df
+            return df.sort_values(by='opportunity_score', ascending=False)
         except Exception as e:
             logger.error(f"Ошибка при расчете скоринга: {e}")
             return pd.DataFrame()
-
-if __name__ == "__main__":
-    engine = ScoringEngine()
-    ranked_opportunities = engine.calculate_opportunity_scores()
-    if not ranked_opportunities.empty:
-        print("Топ-3 рыночные возможности:")
-        print(ranked_opportunities[['title', 'category', 'opportunity_score']].head(3))
