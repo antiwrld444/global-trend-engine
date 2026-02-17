@@ -37,7 +37,7 @@ def main():
                     reporter.send_alert(alert)
         
         print("Cycle complete. Sleeping for 1 hour...")
-        time.sleep(3600)
+        time.sleep(900)
 
 if __name__ == "__main__":
     main()
