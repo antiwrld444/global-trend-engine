@@ -10,4 +10,3 @@ scikit-learn
 scipy
 python-dotenv
 numpy
-tavily-python
