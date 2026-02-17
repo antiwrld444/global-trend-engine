@@ -7,10 +7,11 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from collectors.news_collector import NewsCollector
+from collectors.market_collector import MarketCollector
 from analytics.scoring_engine import ScoringEngine
 
 def main():
-    print("🚀 GTOE Roadmap 4.0: Starting Autonomous Cycle (Lite Mode)...")
+    print("🚀 GTOE Roadmap 4.0: Starting Autonomous Cycle...")
     
     # Определение базовой директории
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -26,21 +27,34 @@ def main():
         keys = json.load(f)
     
     # Initialize components
-    collector = NewsCollector(api_key=keys.get('newsapi'))
+    news_collector = NewsCollector(api_key=keys.get('newsapi'))
+    market_collector = MarketCollector(api_key=keys.get('alphavantage'))
     scorer = ScoringEngine()
     
-    print("✅ System initialized. Monitoring global trends...")
+    print("✅ System initialized. Monitoring global News and Markets...")
 
     while True:
-        print(f"\n--- [{time.strftime('%H:%M:%S')}] Fetching New Trends ---")
+        print(f"\n--- [{time.strftime('%H:%M:%S')}] Fetching New Data ---")
         try:
-            raw_data = collector.fetch_latest()
+            # Сбор из разных источников
+            raw_data = []
+            
+            # 1. News
+            print("🔍 Scanning News sources...")
+            raw_data.extend(news_collector.fetch_latest())
+            
+            # 2. Markets
+            print("📈 Checking Market prices (AlphaVantage)...")
+            raw_data.extend(market_collector.fetch_latest())
+            
+            # Анализ
             trends = scorer.analyze(raw_data)
             
+            # Вывод (порог 0.5 чтобы видеть результаты AlphaVantage)
             for trend in trends:
-                if trend.get('score', 0) > 0.8:
-                    print(f"🔥 HIGH PRIORITY: {trend['title']} ({trend['score']})")
-                    print(f"🔗 Source: {trend['source']} | URL: {trend['url']}")
+                if trend.get('score', 0) >= 0.5:
+                    print(f"✅ Found: {trend['title']} | Source: {trend['source']}")
+                    
         except Exception as e:
             print(f"❌ ERROR during cycle: {str(e)}")
         
